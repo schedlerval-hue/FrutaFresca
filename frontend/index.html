@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Fruta Fresca</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f7f5ed;
+            color: #263b27;
+        }
+
+        header {
+            background: #315c32;
+            color: white;
+            padding: 35px 20px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 42px;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 18px;
+        }
+
+        .historia {
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 30px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+        }
+
+        .historia h2 {
+            color: #315c32;
+            margin-bottom: 15px;
+        }
+
+        .historia p {
+            line-height: 1.7;
+            color: #555;
+        }
+
+        .produtos {
+            max-width: 1100px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+
+        .titulo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .titulo h2 {
+            font-size: 32px;
+            color: #315c32;
+        }
+
+        .titulo p {
+            margin-top: 10px;
+            color: #666;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 25px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+        }
+
+        .card img {
+            width: 100%;
+            height: 230px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .card-conteudo {
+            padding: 22px;
+            text-align: center;
+        }
+
+        .card h3 {
+            font-size: 25px;
+            margin-bottom: 10px;
+            color: #263b27;
+        }
+
+        .descricao {
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .preco {
+            color: #e87518;
+            font-size: 25px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .quantidade {
+            width: 100%;
+            padding: 13px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            font-size: 16px;
+            margin-bottom: 12px;
+        }
+
+        .btn-adicionar {
+            width: 100%;
+            border: none;
+            background: #e87518;
+            color: white;
+            padding: 14px;
+            border-radius: 30px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .btn-adicionar:hover {
+            background: #d96108;
+        }
+
+        .carrinho {
+            max-width: 900px;
+            margin: 50px auto;
+            padding: 30px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+        }
+
+        .carrinho h2 {
+            color: #315c32;
+            margin-bottom: 20px;
+        }
+
+        .item-carrinho {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+            padding: 15px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .item-info strong {
+            font-size: 18px;
+        }
+
+        .item-info p {
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .subtotal {
+            font-weight: bold;
+            color: #e87518;
+        }
+
+        .remover {
+            border: none;
+            background: #eee;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .total {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 25px;
+            font-size: 22px;
+            font-weight: bold;
+        }
+
+        #total-carrinho {
+            color: #e87518;
+        }
+
+        .btn-finalizar {
+            width: 100%;
+            margin-top: 25px;
+            padding: 16px;
+            border: none;
+            border-radius: 30px;
+            background: #315c32;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .btn-finalizar:hover {
+            background: #244625;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 1000;
+        }
+
+        .modal.ativo {
+            display: flex;
+        }
+
+        .modal-conteudo {
+            background: white;
+            width: 100%;
+            max-width: 550px;
+            max-height: 90vh;
+            overflow-y: auto;
+            border-radius: 25px;
+            padding: 30px;
+            position: relative;
+        }
+
+        .fechar {
+            position: absolute;
+            right: 20px;
+            top: 15px;
+            border: none;
+            background: #eee;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        .modal-conteudo h2 {
+            color: #315c32;
+            margin-bottom: 10px;
+        }
+
+        .modal-conteudo > p {
+            color: #666;
+            margin-bottom: 25px;
+        }
+
+        .campo {
+            margin-bottom: 16px;
+        }
+
+        .campo label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 7px;
+            color: #333;
+        }
+
+        .campo input,
+        .campo textarea {
+            width: 100%;
+            padding: 13px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            font-size: 15px;
+        }
+
+        .retirada {
+            background: #edf6ed;
+            border-left: 5px solid #315c32;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .btn-whatsapp {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 30px;
+            background: #315c32;
+            color: white;
+            font-size: 17px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        footer {
+            background: #315c32;
+            color: white;
+            text-align: center;
+            padding: 30px;
+            margin-top: 50px;
+        }
+
+        @media (max-width: 800px) {
+            .cards {
+                grid-template-columns: 1fr;
+            }
+
+            header h1 {
+                font-size: 32px;
+            }
+
+            .item-carrinho {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>Fruta Fresca</h1>
+        <p>Frutas frescas direto da nossa família para sua mesa</p>
+    </header>
+
+
+    <section class="historia">
+
+        <h2>Uma família que cultiva com carinho</h2>
+
+        <p>
+            A Fruta Fresca nasceu de uma família de produtores rurais
+            que há anos trabalha com dedicação no cultivo de frutas.
+            Nossa família acredita que produzir alimentos de qualidade
+            começa com o cuidado com a terra, com as plantas e com as
+            pessoas que irão consumir nossos produtos.
+        </p>
+
+        <br>
+
+        <p>
+            Hoje, levamos morangos, uvas e laranjas frescas para nossos
+            clientes, sempre buscando oferecer produtos selecionados,
+            frescos e de qualidade.
+        </p>
+
+    </section>
+
+
+    <section class="produtos">
+
+        <div class="titulo">
+
+            <h2>Nossas frutas</h2>
+
+            <p>
+                Escolha a fruta e informe quantos quilos deseja comprar.
+            </p>
+
+        </div>
+
+
+        <div class="cards">
+
+
+            <!-- MORANGO -->
+
+            <div class="card">
+
+                <img
+                    src="img/morango.png"
+                    alt="Morango"
+                >
+
+                <div class="card-conteudo">
+
+                    <h3>Morango</h3>
+
+                    <p class="descricao">
+                        Morangos frescos e selecionados.
+                    </p>
+
+                    <p class="preco">
+                        R$ 45,00 / kg
+                    </p>
+
+                    <input
+                        type="number"
+                        id="quantidade-morango"
+                        class="quantidade"
+                        min="0.1"
+                        step="0.1"
+                        placeholder="Quantidade em kg"
+                    >
+
+                    <button
+                        class="btn-adicionar"
+                        onclick="adicionarProduto(
+                            1,
+                            'Morango',
+                            45,
+                            'quantidade-morango'
+                        )"
+                    >
+                        Adicionar ao pedido
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <!-- UVA -->
+
+            <div class="card">
+
+                <img
+                    src="img/uva.png"
+                    alt="Uva"
+                >
+
+                <div class="card-conteudo">
+
+                    <h3>Uva</h3>
+
+                    <p class="descricao">
+                        Uvas frescas e doces.
+                    </p>
+
+                    <p class="preco">
+                        R$ 35,00 / kg
+                    </p>
+
+                    <input
+                        type="number"
+                        id="quantidade-uva"
+                        class="quantidade"
+                        min="0.1"
+                        step="0.1"
+                        placeholder="Quantidade em kg"
+                    >
+
+                    <button
+                        class="btn-adicionar"
+                        onclick="adicionarProduto(
+                            2,
+                            'Uva',
+                            35,
+                            'quantidade-uva'
+                        )"
+                    >
+                        Adicionar ao pedido
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <!-- LARANJA -->
+
+            <div class="card">
+
+                <img
+                    src="img/laranja.png"
+                    alt="Laranja"
+                >
+
+                <div class="card-conteudo">
+
+                    <h3>Laranja</h3>
+
+                    <p class="descricao">
+                        Laranjas frescas e suculentas.
+                    </p>
+
+                    <p class="preco">
+                        R$ 8,99 / kg
+                    </p>
+
+                    <input
+                        type="number"
+                        id="quantidade-laranja"
+                        class="quantidade"
+                        min="0.1"
+                        step="0.1"
+                        placeholder="Quantidade em kg"
+                    >
+
+                    <button
+                        class="btn-adicionar"
+                        onclick="adicionarProduto(
+                            3,
+                            'Laranja',
+                            8.99,
+                            'quantidade-laranja'
+                        )"
+                    >
+                        Adicionar ao pedido
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- CARRINHO -->
+
+    <section
+        class="carrinho"
+        id="carrinho"
+    >
+
+        <h2>Seu pedido</h2>
+
+        <div id="lista-carrinho">
+
+            <p class="carrinho-vazio">
+                Seu carrinho está vazio.
+            </p>
+
+        </div>
+
+        <div class="total">
+
+            <span>Total</span>
+
+            <span id="total-carrinho">
+                R$ 0,00
+            </span>
+
+        </div>
+
+        <button
+            class="btn-finalizar"
+            onclick="finalizarPedido()"
+        >
+            Finalizar pedido
+        </button>
+
+    </section>
+
+
+    <!-- MODAL DO PEDIDO -->
+
+    <div
+        class="modal"
+        id="modal-pedido"
+    >
+
+        <div class="modal-conteudo">
+
+            <button
+                class="fechar"
+                onclick="fecharModal()"
+            >
+                ×
+            </button>
+
+            <h2>Finalizar pedido</h2>
+
+            <p>
+                Preencha seus dados antes de ir para o WhatsApp.
+            </p>
+
+
+            <div class="campo">
+
+                <label for="cliente-nome">
+                    Seu nome
+                </label>
+
+                <input
+                    type="text"
+                    id="cliente-nome"
+                    placeholder="Digite seu nome"
+                >
+
+            </div>
+
+
+            <div class="campo">
+
+                <label for="cliente-telefone">
+                    Seu telefone
+                </label>
+
+                <input
+                    type="tel"
+                    id="cliente-telefone"
+                    placeholder="Digite seu telefone"
+                >
+
+            </div>
+
+
+            <div class="retirada">
+
+                <strong>Forma de retirada</strong>
+
+                <br><br>
+
+                A retirada dos pedidos será feita no endereço:
+
+                <br><br>
+
+                <strong>
+                    Av. Amazonas, 1815 - Universitário,
+                    Lajeado - RS, 95914-106
+                </strong>
+
+            </div>
+
+
+            <div class="campo">
+
+                <label for="cliente-observacao">
+                    Observação
+                </label>
+
+                <textarea
+                    id="cliente-observacao"
+                    rows="4"
+                    placeholder="Alguma observação sobre seu pedido?"
+                ></textarea>
+
+            </div>
+
+
+            <button
+                class="btn-whatsapp"
+                onclick="enviarPedidoWhatsApp()"
+            >
+                Gerar pedido no WhatsApp
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <footer>
+
+        <p>
+            Fruta Fresca — Produção familiar
+        </p>
+
+        <p>
+            Frutas frescas e selecionadas
+        </p>
+
+    </footer>
+
+
+    <!-- IMPORTANTE: O JAVASCRIPT FICA AQUI -->
+    <script src="script.js"></script>
+
+</body>
+
+</html>
