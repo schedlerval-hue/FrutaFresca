@@ -1,17 +1,98 @@
 let carrinho = [];
 
 const API_URL = "http://127.0.0.1:5000";
-const WHATSAPP = "5551980700507";
 
 const LOCAL_RETIRADA =
     "Av. Amazonas, 1815 - Universitário, Lajeado - RS, 95914-106";
 
+let produtosEstoque = [];
 
-// =====================================================
-// ADICIONAR PRODUTO
-// =====================================================
+// ===============================
+// CARREGAR PRODUTOS E ESTOQUE
+// ===============================
 
-function adicionarProduto(id, nome, preco, campoQuantidade) {
+async function carregarEstoque() {
+    try {
+        const resposta = await fetch(`${API_URL}/produtos`);
+
+        if (!resposta.ok) {
+            throw new Error("Erro ao buscar produtos.");
+        }
+
+        produtosEstoque = await resposta.json();
+
+        mostrarEstoques();
+
+    } catch (erro) {
+        console.error("Erro ao carregar estoque:", erro);
+        alert("Não foi possível carregar o estoque.");
+    }
+}
+
+
+// ===============================
+// MOSTRAR ESTOQUE NA TELA
+// ===============================
+
+function mostrarEstoques() {
+
+    produtosEstoque.forEach(produto => {
+
+        let campoQuantidade = "";
+
+        if (produto.nome === "Morango") {
+            campoQuantidade = "quantidade-morango";
+        }
+
+        if (produto.nome === "Uva") {
+            campoQuantidade = "quantidade-uva";
+        }
+
+        if (produto.nome === "Laranja") {
+            campoQuantidade = "quantidade-laranja";
+        }
+
+        if (!campoQuantidade) return;
+
+        const campo = document.getElementById(campoQuantidade);
+
+        if (!campo) return;
+
+        let estoqueElemento = document.getElementById(
+            `estoque-${produto.id}`
+        );
+
+        if (!estoqueElemento) {
+
+            estoqueElemento = document.createElement("p");
+
+            estoqueElemento.id = `estoque-${produto.id}`;
+
+            estoqueElemento.style.marginTop = "5px";
+
+            campo.parentElement.appendChild(estoqueElemento);
+        }
+
+        estoqueElemento.textContent =
+            `Estoque disponível: ${produto.estoque.toFixed(2)} kg`;
+    });
+}
+
+
+// ===============================
+// ADICIONAR PRODUTO AO CARRINHO
+// ===============================
+
+async function adicionarProduto(
+    id,
+    nome,
+    preco,
+    campoQuantidade
+) {
+
+    if (produtosEstoque.length === 0) {
+        await carregarEstoque();
+    }
 
     const campo = document.getElementById(campoQuantidade);
 
@@ -27,9 +108,36 @@ function adicionarProduto(id, nome, preco, campoQuantidade) {
         return;
     }
 
+    const produtoEstoque = produtosEstoque.find(
+        produto => Number(produto.id) === Number(id)
+    );
+
+    if (!produtoEstoque) {
+        alert("Produto não encontrado no estoque.");
+        return;
+    }
+
     const produtoExistente = carrinho.find(
         produto => produto.id === id
     );
+
+    const quantidadeNoCarrinho = produtoExistente
+        ? produtoExistente.quantidade
+        : 0;
+
+    const novaQuantidade =
+        quantidadeNoCarrinho + quantidade;
+
+    if (novaQuantidade > produtoEstoque.estoque) {
+
+        alert(
+            `Não há estoque suficiente de ${nome}.\n\n` +
+            `Estoque disponível: ${produtoEstoque.estoque.toFixed(2)} kg\n` +
+            `Quantidade solicitada: ${novaQuantidade.toFixed(2)} kg`
+        );
+
+        return;
+    }
 
     if (produtoExistente) {
 
@@ -38,33 +146,37 @@ function adicionarProduto(id, nome, preco, campoQuantidade) {
     } else {
 
         carrinho.push({
-            id: id,
-            nome: nome,
-            preco: preco,
+            id: produtoEstoque.id,
+            nome: produtoEstoque.nome,
+            preco: produtoEstoque.preco,
             quantidade: quantidade
         });
-
     }
 
     campo.value = "";
 
     atualizarCarrinho();
 
-    document.getElementById("carrinho").scrollIntoView({
-        behavior: "smooth"
-    });
+    document
+        .getElementById("carrinho")
+        .scrollIntoView({
+            behavior: "smooth"
+        });
 }
 
 
-// =====================================================
+// ===============================
 // ATUALIZAR CARRINHO
-// =====================================================
+// ===============================
 
 function atualizarCarrinho() {
 
-    const lista = document.getElementById("lista-carrinho");
+    const lista =
+        document.getElementById("lista-carrinho");
+
     const quantidadeCarrinho =
         document.getElementById("quantidade-carrinho");
+
     const totalCarrinho =
         document.getElementById("total-carrinho");
 
@@ -72,11 +184,10 @@ function atualizarCarrinho() {
 
     if (carrinho.length === 0) {
 
-        lista.innerHTML = `
-            <p class="carrinho-vazio">
+        lista.innerHTML =
+            `<p class="carrinho-vazio">
                 Seu carrinho está vazio.
-            </p>
-        `;
+            </p>`;
 
         if (quantidadeCarrinho) {
             quantidadeCarrinho.textContent = "0 kg";
@@ -100,22 +211,22 @@ function atualizarCarrinho() {
             produto.preco * produto.quantidade;
 
         total += subtotal;
+
         quantidadeTotal += produto.quantidade;
 
-        const item = document.createElement("div");
+        const item =
+            document.createElement("div");
 
         item.className = "item-carrinho";
 
         item.innerHTML = `
             <div class="item-info">
-
                 <strong>${produto.nome}</strong>
 
                 <p>
                     ${produto.quantidade.toFixed(2)} kg ×
                     ${formatarReal(produto.preco)}/kg
                 </p>
-
             </div>
 
             <div class="subtotal">
@@ -144,9 +255,9 @@ function atualizarCarrinho() {
 }
 
 
-// =====================================================
+// ===============================
 // REMOVER PRODUTO
-// =====================================================
+// ===============================
 
 function removerProduto(indice) {
 
@@ -156,28 +267,33 @@ function removerProduto(indice) {
 }
 
 
-// =====================================================
-// DINHEIRO
-// =====================================================
+// ===============================
+// FORMATAR DINHEIRO
+// ===============================
 
 function formatarReal(valor) {
 
-    return valor.toLocaleString("pt-BR", {
-        style: "currency",
-        currency: "BRL"
-    });
+    return valor.toLocaleString(
+        "pt-BR",
+        {
+            style: "currency",
+            currency: "BRL"
+        }
+    );
 }
 
 
-// =====================================================
-// ABRIR FORMULÁRIO
-// =====================================================
+// ===============================
+// ABRIR MODAL
+// ===============================
 
 function finalizarPedido() {
 
     if (carrinho.length === 0) {
 
-        alert("Adicione pelo menos uma fruta ao pedido.");
+        alert(
+            "Adicione pelo menos uma fruta ao pedido."
+        );
 
         return;
     }
@@ -187,7 +303,9 @@ function finalizarPedido() {
 
     if (!modal) {
 
-        alert("Formulário de pedido não encontrado.");
+        alert(
+            "Formulário de pedido não encontrado."
+        );
 
         return;
     }
@@ -196,9 +314,9 @@ function finalizarPedido() {
 }
 
 
-// =====================================================
-// FECHAR FORMULÁRIO
-// =====================================================
+// ===============================
+// FECHAR MODAL
+// ===============================
 
 function fecharModal() {
 
@@ -211,25 +329,29 @@ function fecharModal() {
 }
 
 
-// =====================================================
-// ENVIAR PEDIDO
-// =====================================================
+// ===============================
+// FINALIZAR PEDIDO
+// ===============================
 
 async function enviarPedidoWhatsApp() {
 
     const nome =
-        document.getElementById("cliente-nome").value.trim();
+        document
+            .getElementById("cliente-nome")
+            .value
+            .trim();
 
     const telefone =
-        document.getElementById("cliente-telefone").value.trim();
+        document
+            .getElementById("cliente-telefone")
+            .value
+            .trim();
 
     const observacao =
-        document.getElementById("cliente-observacao").value.trim();
-
-
-    // -------------------------------------------------
-    // VALIDAÇÕES
-    // -------------------------------------------------
+        document
+            .getElementById("cliente-observacao")
+            .value
+            .trim();
 
     if (!nome) {
 
@@ -252,11 +374,6 @@ async function enviarPedidoWhatsApp() {
         return;
     }
 
-
-    // -------------------------------------------------
-    // CALCULAR TOTAL
-    // -------------------------------------------------
-
     let total = 0;
 
     carrinho.forEach(produto => {
@@ -264,13 +381,8 @@ async function enviarPedidoWhatsApp() {
         total +=
             produto.preco *
             produto.quantidade;
-
     });
 
-
-    // -------------------------------------------------
-    // DADOS DO PEDIDO
-    // -------------------------------------------------
 
     const dadosPedido = {
 
@@ -290,20 +402,15 @@ async function enviarPedidoWhatsApp() {
 
             produto_id: produto.id,
 
-            quantidade_kg: produto.quantidade,
+            quantidade_kg:
+                produto.quantidade,
 
-            preco_kg: produto.preco
+            preco_kg:
+                produto.preco
 
         }))
-
     };
 
-
-    // -------------------------------------------------
-    // TENTAR SALVAR NA API
-    // -------------------------------------------------
-
-    let numeroPedido = null;
 
     try {
 
@@ -313,146 +420,70 @@ async function enviarPedidoWhatsApp() {
                 method: "POST",
 
                 headers: {
-                    "Content-Type": "application/json"
+                    "Content-Type":
+                        "application/json"
                 },
 
-                body: JSON.stringify(dadosPedido)
+                body:
+                    JSON.stringify(dadosPedido)
             }
         );
 
 
-        if (resposta.ok) {
+        const resultado =
+            await resposta.json();
 
-            const resultado =
-                await resposta.json();
 
-            numeroPedido =
-                resultado.pedido_id || null;
+        if (!resposta.ok) {
 
-        } else {
-
-            console.warn(
-                "A API respondeu com erro:",
-                resposta.status
+            alert(
+                resultado.erro ||
+                "Não foi possível finalizar o pedido."
             );
 
+            return;
         }
+
+
+        fecharModal();
+
+
+        alert(
+            `Pedido realizado com sucesso!\n\n` +
+            `Número do pedido: ${resultado.pedido_id}\n` +
+            `Total: ${formatarReal(resultado.total)}`
+        );
+
+
+        carrinho = [];
+
+        atualizarCarrinho();
+
+        await carregarEstoque();
+
 
     } catch (erro) {
 
-        console.warn(
-            "Não foi possível conectar à API:",
-            erro
+        console.error(erro);
+
+        alert(
+            "Não foi possível conectar ao sistema de pedidos."
         );
-
     }
-
-
-    // -------------------------------------------------
-    // MONTAR MENSAGEM DO WHATSAPP
-    // -------------------------------------------------
-
-    let mensagem =
-        "NOVO PEDIDO - FRUTA FRESCA\n\n";
-
-
-    if (numeroPedido) {
-
-        mensagem +=
-            `Pedido nº: ${numeroPedido}\n\n`;
-
-    }
-
-
-    mensagem +=
-        "DADOS DO CLIENTE\n";
-
-    mensagem +=
-        `Nome: ${nome}\n`;
-
-    mensagem +=
-        `Telefone: ${telefone}\n\n`;
-
-
-    mensagem +=
-        "FORMA DE RETIRADA\n";
-
-    mensagem +=
-        "Retirada no local\n";
-
-    mensagem +=
-        `Local: ${LOCAL_RETIRADA}\n\n`;
-
-
-    mensagem +=
-        "PRODUTOS\n";
-
-
-    carrinho.forEach(produto => {
-
-        const subtotal =
-            produto.preco *
-            produto.quantidade;
-
-
-        mensagem +=
-            `${produto.nome}\n`;
-
-        mensagem +=
-            `Quantidade: ${produto.quantidade.toFixed(2)} kg\n`;
-
-        mensagem +=
-            `Preço: ${formatarReal(produto.preco)}/kg\n`;
-
-        mensagem +=
-            `Subtotal: ${formatarReal(subtotal)}\n\n`;
-
-    });
-
-
-    mensagem +=
-        `TOTAL: ${formatarReal(total)}\n`;
-
-
-    if (observacao) {
-
-        mensagem +=
-            `\nObservação: ${observacao}\n`;
-
-    }
-
-
-    // -------------------------------------------------
-    // FECHAR MODAL
-    // -------------------------------------------------
-
-    fecharModal();
-
-
-    // -------------------------------------------------
-    // ABRIR WHATSAPP
-    // -------------------------------------------------
-
-    const urlWhatsApp =
-        "https://wa.me/" +
-        WHATSAPP +
-        "?text=" +
-        encodeURIComponent(mensagem);
-
-
-    window.location.href = urlWhatsApp;
 }
 
 
-// =====================================================
-// INICIAR
-// =====================================================
+// ===============================
+// INICIAR SITE
+// ===============================
 
 document.addEventListener(
     "DOMContentLoaded",
     function () {
 
         atualizarCarrinho();
+
+        carregarEstoque();
 
     }
 );
