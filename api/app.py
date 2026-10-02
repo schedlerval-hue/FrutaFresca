@@ -4,177 +4,295 @@ import os
 from datetime import datetime
 from functools import wraps
 
-# ============================================================
+
+# =====================================================
 # CONFIGURAÇÕES
-# ============================================================
+# =====================================================
 
 app = Flask(__name__)
 
-# Chave usada para a sessão do administrador
 app.secret_key = "frutafresca_chave_secreta_2026"
 
-# Senha do administrador
 SENHA_ADMIN = "fruta123"
 
-# Local fixo para retirada
-LOCAL_RETIRADA = "Av. Amazonas, 1815 - Universitário, Lajeado - RS, 95914-106"
-
-# Caminhos
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
-BANCO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "banco.db")
+LOCAL_RETIRADA = (
+    "Av. Amazonas, 1815 - Universitário, Lajeado - RS, 95914-106"
+)
 
 
-# ============================================================
-# BANCO DE DADOS
-# ============================================================
+# =====================================================
+# CAMINHOS
+# =====================================================
+
+BASE_DIR = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))
+)
+
+FRONTEND_DIR = os.path.join(
+    BASE_DIR,
+    "frontend"
+)
+
+BANCO = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "banco.db"
+)
+
+
+# =====================================================
+# CONEXÃO COM O BANCO
+# =====================================================
 
 def conectar():
+
     conexao = sqlite3.connect(BANCO)
+
     conexao.row_factory = sqlite3.Row
+
     return conexao
 
 
-def adicionar_coluna_se_nao_existir(tabela, coluna, tipo):
+# =====================================================
+# ADICIONAR COLUNA CASO NÃO EXISTA
+# =====================================================
 
-    conexao = conectar()
+def adicionar_coluna_se_nao_existir(
+    conexao,
+    tabela,
+    coluna,
+    definicao
+):
 
     colunas = conexao.execute(
         f"PRAGMA table_info({tabela})"
     ).fetchall()
 
-    nomes = [coluna_db["name"] for coluna_db in colunas]
+    nomes = [
+        coluna_info["name"]
+        for coluna_info in colunas
+    ]
 
     if coluna not in nomes:
+
         conexao.execute(
-            f"ALTER TABLE {tabela} ADD COLUMN {coluna} {tipo}"
+            f"""
+            ALTER TABLE {tabela}
+            ADD COLUMN {coluna} {definicao}
+            """
         )
 
-    conexao.commit()
-    conexao.close()
 
+# =====================================================
+# CRIAR BANCO
+# =====================================================
 
 def criar_banco():
 
     conexao = conectar()
 
-    # ========================================================
-    # PRODUTOS
-    # ========================================================
+    # -------------------------------------------------
+    # TABELA DE PRODUTOS
+    # -------------------------------------------------
 
-    conexao.execute("""
+    conexao.execute(
+        """
         CREATE TABLE IF NOT EXISTS produtos (
+
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+
             codigo TEXT UNIQUE,
+
             nome TEXT NOT NULL,
+
             descricao TEXT,
+
             custo REAL DEFAULT 0,
+
             preco REAL NOT NULL,
+
             estoque REAL DEFAULT 0,
+
             imagem TEXT
         )
-    """)
+        """
+    )
 
-    # ========================================================
-    # PEDIDOS
-    # ========================================================
 
-    conexao.execute("""
+    # -------------------------------------------------
+    # TABELA DE PEDIDOS
+    # -------------------------------------------------
+
+    conexao.execute(
+        """
         CREATE TABLE IF NOT EXISTS pedidos (
+
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+
             nome_cliente TEXT NOT NULL,
+
             telefone TEXT,
+
             forma_entrega TEXT DEFAULT 'Retirada',
+
             local_retirada TEXT,
+
             observacao TEXT,
+
             total REAL DEFAULT 0,
+
             data_pedido TEXT
         )
-    """)
+        """
+    )
 
-    # ========================================================
-    # ITENS DOS PEDIDOS
-    # ========================================================
 
-    conexao.execute("""
+    # -------------------------------------------------
+    # TABELA DE ITENS DO PEDIDO
+    # -------------------------------------------------
+
+    conexao.execute(
+        """
         CREATE TABLE IF NOT EXISTS itens_pedido (
+
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+
             pedido_id INTEGER NOT NULL,
+
             produto_id INTEGER NOT NULL,
+
             quantidade_kg REAL NOT NULL,
+
             preco_kg REAL NOT NULL,
+
             subtotal REAL NOT NULL,
-            FOREIGN KEY (pedido_id) REFERENCES pedidos(id),
-            FOREIGN KEY (produto_id) REFERENCES produtos(id)
+
+            FOREIGN KEY (pedido_id)
+                REFERENCES pedidos(id),
+
+            FOREIGN KEY (produto_id)
+                REFERENCES produtos(id)
         )
-    """)
+        """
+    )
 
-    conexao.commit()
-    conexao.close()
 
-    # ========================================================
-    # GARANTE QUE BANCOS ANTIGOS TENHAM AS COLUNAS
-    # ========================================================
+    # -------------------------------------------------
+    # GARANTIR COLUNAS ANTIGAS
+    # -------------------------------------------------
 
-    colunas_pedidos = [
-        ("nome_cliente", "TEXT"),
-        ("telefone", "TEXT"),
-        ("forma_entrega", "TEXT"),
-        ("local_retirada", "TEXT"),
-        ("observacao", "TEXT"),
-        ("total", "REAL"),
-        ("data_pedido", "TEXT")
+    adicionar_coluna_se_nao_existir(
+        conexao,
+        "pedidos",
+        "telefone",
+        "TEXT"
+    )
+
+    adicionar_coluna_se_nao_existir(
+        conexao,
+        "pedidos",
+        "forma_entrega",
+        "TEXT DEFAULT 'Retirada'"
+    )
+
+    adicionar_coluna_se_nao_existir(
+        conexao,
+        "pedidos",
+        "local_retirada",
+        "TEXT"
+    )
+
+    adicionar_coluna_se_nao_existir(
+        conexao,
+        "pedidos",
+        "observacao",
+        "TEXT"
+    )
+
+    adicionar_coluna_se_nao_existir(
+        conexao,
+        "pedidos",
+        "total",
+        "REAL DEFAULT 0"
+    )
+
+    adicionar_coluna_se_nao_existir(
+        conexao,
+        "pedidos",
+        "data_pedido",
+        "TEXT"
+    )
+
+
+    # -------------------------------------------------
+    # PRODUTOS INICIAIS
+    #
+    # Só cria se ainda não existirem.
+    # Não repõe o estoque a cada inicialização.
+    # -------------------------------------------------
+
+    produtos_iniciais = [
+
+        (
+            "MORANGO",
+            "Morango",
+            "Morango fresco",
+            0,
+            45.00,
+            10.00,
+            "img/morango.jpg"
+        ),
+
+        (
+            "UVA",
+            "Uva",
+            "Uva fresca",
+            0,
+            35.00,
+            15.00,
+            "img/uva.jpg"
+        ),
+
+        (
+            "LARANJA",
+            "Laranja",
+            "Laranja fresca",
+            0,
+            8.99,
+            20.00,
+            "img/laranja.jpg"
+        )
+
     ]
 
-    for coluna, tipo in colunas_pedidos:
-        adicionar_coluna_se_nao_existir(
-            "pedidos",
-            coluna,
-            tipo
+
+    for produto in produtos_iniciais:
+
+        conexao.execute(
+            """
+            INSERT OR IGNORE INTO produtos
+            (
+                codigo,
+                nome,
+                descricao,
+                custo,
+                preco,
+                estoque,
+                imagem
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            produto
         )
 
-    # Preenche a data dos pedidos antigos que estiverem sem data
-    conexao = conectar()
-
-    conexao.execute("""
-        UPDATE pedidos
-        SET data_pedido = ?
-        WHERE data_pedido IS NULL
-    """, (
-        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    ))
 
     conexao.commit()
+
     conexao.close()
 
 
-# ============================================================
-# PROTEÇÃO DO ADMINISTRADOR
-# ============================================================
-
-def somente_admin(funcao):
-
-    @wraps(funcao)
-    def verificar_admin(*args, **kwargs):
-
-        if not session.get("admin_logado"):
-            return redirect("/admin")
-
-        return funcao(*args, **kwargs)
-
-    return verificar_admin
-
-
-# ============================================================
-# INICIALIZAÇÃO
-# ============================================================
-
-criar_banco()
-
-
-# ============================================================
-# ABRIR SITE
-# ============================================================
+# =====================================================
+# PÁGINA PRINCIPAL
+# =====================================================
 
 @app.route("/")
 def inicio():
@@ -185,38 +303,30 @@ def inicio():
     )
 
 
-# ============================================================
+# =====================================================
 # ARQUIVOS DO FRONTEND
-# ============================================================
+# =====================================================
 
 @app.route("/<path:arquivo>")
 def arquivos_frontend(arquivo):
 
-    caminho = os.path.join(
+    return send_from_directory(
         FRONTEND_DIR,
         arquivo
     )
 
-    if os.path.isfile(caminho):
 
-        return send_from_directory(
-            FRONTEND_DIR,
-            arquivo
-        )
-
-    return "Arquivo não encontrado", 404
-
-
-# ============================================================
+# =====================================================
 # LISTAR PRODUTOS
-# ============================================================
+# =====================================================
 
-@app.route("/produtos")
-def produtos():
+@app.route("/produtos", methods=["GET"])
+def listar_produtos():
 
     conexao = conectar()
 
-    lista_produtos = conexao.execute("""
+    produtos = conexao.execute(
+        """
         SELECT
             id,
             codigo,
@@ -228,110 +338,223 @@ def produtos():
             imagem
         FROM produtos
         ORDER BY id
-    """).fetchall()
+        """
+    ).fetchall()
 
     conexao.close()
 
     return jsonify([
         dict(produto)
-        for produto in lista_produtos
+        for produto in produtos
     ])
 
 
-# ============================================================
-# REGISTRAR PEDIDO
-# ============================================================
+# =====================================================
+# CRIAR PEDIDO
+# =====================================================
 
 @app.route("/pedidos", methods=["POST"])
 def criar_pedido():
 
+    dados = request.get_json()
+
+    if not dados:
+
+        return jsonify({
+            "sucesso": False,
+            "erro": "Nenhum dado foi enviado."
+        }), 400
+
+
+    nome_cliente = (
+        dados.get("nome_cliente") or ""
+    ).strip()
+
+    telefone = (
+        dados.get("telefone") or ""
+    ).strip()
+
+    forma_entrega = (
+        dados.get("forma_entrega")
+        or "Retirada"
+    )
+
+    local_retirada = (
+        dados.get("local_retirada")
+        or LOCAL_RETIRADA
+    )
+
+    observacao = (
+        dados.get("observacao") or ""
+    ).strip()
+
+    itens = dados.get("itens", [])
+
+
+    # -------------------------------------------------
+    # VALIDAÇÕES
+    # -------------------------------------------------
+
+    if not nome_cliente:
+
+        return jsonify({
+            "sucesso": False,
+            "erro": "Informe o nome do cliente."
+        }), 400
+
+
+    if not telefone:
+
+        return jsonify({
+            "sucesso": False,
+            "erro": "Informe o telefone."
+        }), 400
+
+
+    if not isinstance(itens, list) or len(itens) == 0:
+
+        return jsonify({
+            "sucesso": False,
+            "erro": "O pedido precisa ter pelo menos um produto."
+        }), 400
+
+
+    conexao = conectar()
+
+
     try:
 
-        dados = request.get_json()
-
-        if not dados:
-            return jsonify({
-                "erro": "Nenhum dado foi enviado."
-            }), 400
-
-        nome_cliente = str(
-            dados.get("nome_cliente", "")
-        ).strip()
-
-        telefone = str(
-            dados.get("telefone", "")
-        ).strip()
-
-        observacao = str(
-            dados.get("observacao", "")
-        ).strip()
-
-        itens = dados.get("itens", [])
-
-        if not nome_cliente:
-
-            return jsonify({
-                "erro": "Informe o nome do cliente."
-            }), 400
-
-        if not itens:
-
-            return jsonify({
-                "erro": "O pedido não possui produtos."
-            }), 400
-
-        conexao = conectar()
+        produtos_pedido = []
 
         total = 0
-        itens_processados = []
 
-        # ====================================================
-        # CALCULAR PEDIDO
-        # ====================================================
+
+        # -------------------------------------------------
+        # VERIFICAR TODOS OS PRODUTOS E ESTOQUES
+        # ANTES DE CRIAR O PEDIDO
+        # -------------------------------------------------
 
         for item in itens:
 
-            produto_id = int(
-                item.get("produto_id")
-            )
+            try:
 
-            quantidade = float(
-                item.get("quantidade_kg", 0)
-            )
+                produto_id = int(
+                    item.get("produto_id")
+                )
 
-            preco_kg = float(
-                item.get("preco_kg", 0)
-            )
+                quantidade = float(
+                    item.get("quantidade_kg")
+                )
+
+            except (TypeError, ValueError):
+
+                conexao.rollback()
+
+                return jsonify({
+                    "sucesso": False,
+                    "erro": "Produto ou quantidade inválida."
+                }), 400
+
 
             if quantidade <= 0:
 
-                conexao.close()
+                conexao.rollback()
 
                 return jsonify({
+                    "sucesso": False,
                     "erro": "A quantidade deve ser maior que zero."
                 }), 400
 
-            subtotal = quantidade * preco_kg
+
+            produto = conexao.execute(
+                """
+                SELECT
+                    id,
+                    nome,
+                    preco,
+                    estoque
+                FROM produtos
+                WHERE id = ?
+                """,
+                (produto_id,)
+            ).fetchone()
+
+
+            if not produto:
+
+                conexao.rollback()
+
+                return jsonify({
+                    "sucesso": False,
+                    "erro":
+                        f"Produto {produto_id} não encontrado."
+                }), 404
+
+
+            estoque_atual = float(
+                produto["estoque"] or 0
+            )
+
+            preco = float(
+                produto["preco"] or 0
+            )
+
+
+            # -------------------------------------------------
+            # VERIFICAR ESTOQUE
+            # -------------------------------------------------
+
+            if quantidade > estoque_atual:
+
+                conexao.rollback()
+
+                return jsonify({
+
+                    "sucesso": False,
+
+                    "erro":
+                        f"Estoque insuficiente para "
+                        f"{produto['nome']}. "
+                        f"Disponível: "
+                        f"{estoque_atual:.2f} kg."
+                }), 400
+
+
+            subtotal = quantidade * preco
 
             total += subtotal
 
-            itens_processados.append({
+
+            produtos_pedido.append({
+
                 "produto_id": produto_id,
-                "quantidade_kg": quantidade,
-                "preco_kg": preco_kg,
-                "subtotal": subtotal
+
+                "nome": produto["nome"],
+
+                "quantidade": quantidade,
+
+                "preco": preco,
+
+                "subtotal": subtotal,
+
+                "estoque_atual": estoque_atual
+
             })
 
-        # ====================================================
-        # SALVAR PEDIDO
-        # ====================================================
+
+        # -------------------------------------------------
+        # CRIAR PEDIDO
+        # -------------------------------------------------
 
         data_pedido = datetime.now().strftime(
             "%Y-%m-%d %H:%M:%S"
         )
 
-        cursor = conexao.execute("""
-            INSERT INTO pedidos (
+
+        cursor = conexao.execute(
+            """
+            INSERT INTO pedidos
+            (
                 nome_cliente,
                 telefone,
                 forma_entrega,
@@ -341,26 +564,32 @@ def criar_pedido():
                 data_pedido
             )
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (
-            nome_cliente,
-            telefone,
-            "Retirada",
-            LOCAL_RETIRADA,
-            observacao,
-            total,
-            data_pedido
-        ))
+            """,
+            (
+                nome_cliente,
+                telefone,
+                forma_entrega,
+                local_retirada,
+                observacao,
+                total,
+                data_pedido
+            )
+        )
+
 
         pedido_id = cursor.lastrowid
 
-        # ====================================================
-        # SALVAR ITENS
-        # ====================================================
 
-        for item in itens_processados:
+        # -------------------------------------------------
+        # SALVAR ITENS E BAIXAR ESTOQUE
+        # -------------------------------------------------
 
-            conexao.execute("""
-                INSERT INTO itens_pedido (
+        for produto in produtos_pedido:
+
+            conexao.execute(
+                """
+                INSERT INTO itens_pedido
+                (
                     pedido_id,
                     produto_id,
                     quantidade_kg,
@@ -368,238 +597,154 @@ def criar_pedido():
                     subtotal
                 )
                 VALUES (?, ?, ?, ?, ?)
-            """, (
-                pedido_id,
-                item["produto_id"],
-                item["quantidade_kg"],
-                item["preco_kg"],
-                item["subtotal"]
-            ))
+                """,
+                (
+                    pedido_id,
+                    produto["produto_id"],
+                    produto["quantidade"],
+                    produto["preco"],
+                    produto["subtotal"]
+                )
+            )
+
+
+            novo_estoque = (
+                produto["estoque_atual"]
+                - produto["quantidade"]
+            )
+
+
+            if novo_estoque < 0:
+                novo_estoque = 0
+
+
+            conexao.execute(
+                """
+                UPDATE produtos
+
+                SET estoque = ?
+
+                WHERE id = ?
+                """,
+                (
+                    novo_estoque,
+                    produto["produto_id"]
+                )
+            )
+
+
+        # -------------------------------------------------
+        # SALVAR NO BANCO
+        # -------------------------------------------------
 
         conexao.commit()
-        conexao.close()
+
 
         return jsonify({
+
             "sucesso": True,
+
             "pedido_id": pedido_id,
+
             "total": total,
-            "local_retirada": LOCAL_RETIRADA
-        })
+
+            "local_retirada": local_retirada,
+
+            "mensagem":
+                "Pedido realizado com sucesso!"
+
+        }), 201
+
 
     except Exception as erro:
 
-        print("ERRO AO REGISTRAR PEDIDO:")
-        print(erro)
+        conexao.rollback()
+
+        print(
+            "ERRO AO CRIAR PEDIDO:",
+            erro
+        )
 
         return jsonify({
-            "erro": "Não foi possível registrar o pedido.",
-            "detalhes": str(erro)
+
+            "sucesso": False,
+
+            "erro":
+                "Não foi possível finalizar o pedido."
         }), 500
 
 
-# ============================================================
-# LOGIN DO ADMINISTRADOR
-# ============================================================
+    finally:
+
+        conexao.close()
+
+
+# =====================================================
+# LOGIN ADMIN
+# =====================================================
 
 @app.route("/admin", methods=["GET", "POST"])
-def admin_login():
+def admin():
 
     if request.method == "POST":
 
-        senha = request.form.get("senha", "")
+        senha = request.form.get(
+            "senha",
+            ""
+        )
 
         if senha == SENHA_ADMIN:
 
-            session["admin_logado"] = True
+            session["admin"] = True
 
-            return redirect("/relatorio/mensal")
+            return redirect(
+                "/relatorio/mensal"
+            )
 
         return """
-        <!DOCTYPE html>
-        <html lang="pt-BR">
-        <head>
-            <meta charset="UTF-8">
-            <title>Acesso negado</title>
-
-            <style>
-
-                body {
-                    font-family: Arial, sans-serif;
-                    background: #f2f7f1;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    height: 100vh;
-                    margin: 0;
-                }
-
-                .caixa {
-                    background: white;
-                    padding: 40px;
-                    border-radius: 20px;
-                    width: 350px;
-                    text-align: center;
-                    box-shadow: 0 10px 30px rgba(0,0,0,0.12);
-                }
-
-                h1 {
-                    color: #285c2d;
-                }
-
-                .erro {
-                    color: #c62828;
-                    margin-bottom: 20px;
-                }
-
-                a {
-                    color: #285c2d;
-                }
-
-            </style>
-
-        </head>
-
-        <body>
-
-            <div class="caixa">
-
-                <h1>FRUTAFRESCA</h1>
-
-                <p class="erro">
-                    Senha incorreta.
-                </p>
-
-                <a href="/admin">
-                    Tentar novamente
-                </a>
-
-            </div>
-
-        </body>
-        </html>
+        <h2>Senha incorreta</h2>
+        <a href="/admin">Voltar</a>
         """
+
 
     return """
     <!DOCTYPE html>
+
     <html lang="pt-BR">
 
     <head>
 
         <meta charset="UTF-8">
 
-        <meta name="viewport"
-              content="width=device-width, initial-scale=1.0">
-
-        <title>Área Administrativa</title>
-
-        <style>
-
-            * {
-                box-sizing: border-box;
-            }
-
-            body {
-                margin: 0;
-                font-family: Arial, sans-serif;
-                background: #f2f7f1;
-                min-height: 100vh;
-
-                display: flex;
-                align-items: center;
-                justify-content: center;
-            }
-
-            .login {
-                width: 400px;
-                max-width: 90%;
-                background: white;
-                padding: 40px;
-                border-radius: 24px;
-
-                box-shadow:
-                    0 15px 40px rgba(0,0,0,0.12);
-            }
-
-            h1 {
-                color: #285c2d;
-                text-align: center;
-                margin-bottom: 10px;
-            }
-
-            p {
-                text-align: center;
-                color: #666;
-                margin-bottom: 30px;
-            }
-
-            label {
-                display: block;
-                font-weight: bold;
-                margin-bottom: 8px;
-            }
-
-            input {
-                width: 100%;
-                padding: 14px;
-                border: 1px solid #ccc;
-                border-radius: 10px;
-                font-size: 16px;
-                margin-bottom: 20px;
-            }
-
-            button {
-                width: 100%;
-                padding: 15px;
-                border: none;
-                border-radius: 10px;
-
-                background: #285c2d;
-                color: white;
-
-                font-size: 16px;
-                font-weight: bold;
-
-                cursor: pointer;
-            }
-
-            button:hover {
-                background: #1e4723;
-            }
-
-        </style>
+        <title>
+            Administração - Fruta Fresca
+        </title>
 
     </head>
 
     <body>
 
-        <div class="login">
+        <h1>
+            Área administrativa
+        </h1>
 
-            <h1>FRUTAFRESCA</h1>
+        <form method="POST">
 
-            <p>
-                Área exclusiva do administrador
-            </p>
+            <label>
+                Senha:
+            </label>
 
-            <form method="POST">
+            <input
+                type="password"
+                name="senha"
+                required
+            >
 
-                <label>
-                    Senha
-                </label>
+            <button type="submit">
+                Entrar
+            </button>
 
-                <input
-                    type="password"
-                    name="senha"
-                    placeholder="Digite a senha"
-                    required
-                >
-
-                <button type="submit">
-                    Entrar
-                </button>
-
-            </form>
-
-        </div>
+        </form>
 
     </body>
 
@@ -607,204 +752,76 @@ def admin_login():
     """
 
 
-# ============================================================
+# =====================================================
+# PROTEGER ÁREA ADMINISTRATIVA
+# =====================================================
+
+def admin_required(func):
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+
+        if not session.get("admin"):
+
+            return redirect("/admin")
+
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+# =====================================================
 # RELATÓRIO MENSAL
-# ============================================================
+# =====================================================
 
 @app.route("/relatorio/mensal")
-@somente_admin
+@admin_required
 def relatorio_mensal():
 
     conexao = conectar()
 
-    mes_atual = datetime.now().strftime("%Y-%m")
 
-    # ========================================================
-    # TOTAL DE PEDIDOS
-    # ========================================================
-
-    resultado = conexao.execute("""
-        SELECT COUNT(*) AS quantidade
-        FROM pedidos
-        WHERE substr(data_pedido, 1, 7) = ?
-    """, (
-        mes_atual,
-    )).fetchone()
-
-    total_pedidos = resultado["quantidade"]
-
-
-    # ========================================================
-    # FATURAMENTO
-    # ========================================================
-
-    resultado = conexao.execute("""
-        SELECT COALESCE(SUM(total), 0) AS faturamento
-        FROM pedidos
-        WHERE substr(data_pedido, 1, 7) = ?
-    """, (
-        mes_atual,
-    )).fetchone()
-
-    faturamento = resultado["faturamento"]
-
-
-    # ========================================================
-    # KG VENDIDOS
-    # ========================================================
-
-    resultado = conexao.execute("""
-        SELECT COALESCE(SUM(ip.quantidade_kg), 0) AS kg
-        FROM itens_pedido ip
-        INNER JOIN pedidos p
-            ON p.id = ip.pedido_id
-        WHERE substr(p.data_pedido, 1, 7) = ?
-    """, (
-        mes_atual,
-    )).fetchone()
-
-    kg_vendidos = resultado["kg"]
-
-
-    # ========================================================
-    # PRODUTOS MAIS VENDIDOS
-    # ========================================================
-
-    produtos_vendidos = conexao.execute("""
-        SELECT
-            pr.nome,
-            SUM(ip.quantidade_kg) AS quantidade_kg,
-            SUM(ip.subtotal) AS valor
-        FROM itens_pedido ip
-        INNER JOIN pedidos p
-            ON p.id = ip.pedido_id
-        INNER JOIN produtos pr
-            ON pr.id = ip.produto_id
-        WHERE substr(p.data_pedido, 1, 7) = ?
-        GROUP BY pr.id, pr.nome
-        ORDER BY quantidade_kg DESC
-    """, (
-        mes_atual,
-    )).fetchall()
-
-
-    # ========================================================
-    # ÚLTIMOS PEDIDOS
-    # ========================================================
-
-    pedidos = conexao.execute("""
+    pedidos = conexao.execute(
+        """
         SELECT
             id,
             nome_cliente,
             telefone,
-            total,
+            forma_entrega,
+            local_retirada,
             observacao,
+            total,
             data_pedido
         FROM pedidos
-        WHERE substr(data_pedido, 1, 7) = ?
         ORDER BY id DESC
-    """, (
-        mes_atual,
-    )).fetchall()
+        """
+    ).fetchall()
+
+
+    itens = conexao.execute(
+        """
+        SELECT
+            itens_pedido.pedido_id,
+            itens_pedido.quantidade_kg,
+            itens_pedido.preco_kg,
+            itens_pedido.subtotal,
+            produtos.nome
+
+        FROM itens_pedido
+
+        INNER JOIN produtos
+            ON produtos.id =
+               itens_pedido.produto_id
+
+        ORDER BY itens_pedido.pedido_id DESC
+        """
+    ).fetchall()
+
 
     conexao.close()
 
 
-    # ========================================================
-    # TABELA DE PRODUTOS
-    # ========================================================
-
-    tabela_produtos = ""
-
-    for produto in produtos_vendidos:
-
-        tabela_produtos += f"""
-        <tr>
-
-            <td>
-                {produto["nome"]}
-            </td>
-
-            <td>
-                {float(produto["quantidade_kg"]):.2f} kg
-            </td>
-
-            <td>
-                R$ {float(produto["valor"]):.2f}
-            </td>
-
-        </tr>
-        """
-
-
-    if not tabela_produtos:
-
-        tabela_produtos = """
-        <tr>
-            <td colspan="3">
-                Nenhum produto vendido neste mês.
-            </td>
-        </tr>
-        """
-
-
-    # ========================================================
-    # TABELA DE PEDIDOS
-    # ========================================================
-
-    tabela_pedidos = ""
-
-    for pedido in pedidos:
-
-        observacao = pedido["observacao"] or ""
-
-        tabela_pedidos += f"""
-        <tr>
-
-            <td>
-                #{pedido["id"]}
-            </td>
-
-            <td>
-                {pedido["nome_cliente"]}
-            </td>
-
-            <td>
-                {pedido["telefone"] or "-"}
-            </td>
-
-            <td>
-                R$ {float(pedido["total"]):.2f}
-            </td>
-
-            <td>
-                {pedido["data_pedido"]}
-            </td>
-
-            <td>
-                {observacao}
-            </td>
-
-        </tr>
-        """
-
-
-    if not tabela_pedidos:
-
-        tabela_pedidos = """
-        <tr>
-            <td colspan="6">
-                Nenhum pedido neste mês.
-            </td>
-        </tr>
-        """
-
-
-    # ========================================================
-    # PÁGINA DO RELATÓRIO
-    # ========================================================
-
-    return f"""
+    html = """
     <!DOCTYPE html>
 
     <html lang="pt-BR">
@@ -813,156 +830,42 @@ def relatorio_mensal():
 
         <meta charset="UTF-8">
 
-        <meta name="viewport"
-              content="width=device-width, initial-scale=1.0">
-
-        <title>Relatório Mensal - Fruta Fresca</title>
+        <title>
+            Relatório Mensal - Fruta Fresca
+        </title>
 
         <style>
 
-            * {{
-                box-sizing: border-box;
-            }}
-
-            body {{
-                margin: 0;
+            body {
                 font-family: Arial, sans-serif;
-                background: #f3f7f1;
-                color: #243424;
-            }}
+                margin: 30px;
+            }
 
-            header {{
-                background: #285c2d;
-                color: white;
-                padding: 25px 6%;
-
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                gap: 20px;
-            }}
-
-            header h1 {{
-                margin: 0;
-                font-size: 28px;
-            }}
-
-            header a {{
-                color: white;
-                text-decoration: none;
-                background: #e97820;
-                padding: 10px 18px;
-                border-radius: 10px;
-            }}
-
-            main {{
-                width: 90%;
-                max-width: 1200px;
-                margin: 40px auto;
-            }}
-
-            .titulo {{
+            h1 {
                 margin-bottom: 30px;
-            }}
+            }
 
-            .titulo h2 {{
-                margin: 0 0 8px;
-                color: #285c2d;
-            }}
+            .pedido {
+                border: 1px solid #ddd;
+                padding: 20px;
+                margin-bottom: 20px;
+                border-radius: 10px;
+            }
 
-            .titulo p {{
-                color: #666;
-            }}
+            .item {
+                margin-left: 20px;
+                margin-top: 8px;
+            }
 
-            .cards {{
-                display: grid;
-                grid-template-columns:
-                    repeat(3, 1fr);
-                gap: 20px;
-                margin-bottom: 35px;
-            }}
-
-            .card {{
-                background: white;
-                padding: 25px;
-                border-radius: 18px;
-
-                box-shadow:
-                    0 5px 20px rgba(0,0,0,0.07);
-            }}
-
-            .card h3 {{
-                margin: 0 0 10px;
-                color: #777;
-                font-size: 15px;
-            }}
-
-            .numero {{
-                font-size: 32px;
+            .total {
                 font-weight: bold;
-                color: #285c2d;
-            }}
+                margin-top: 15px;
+            }
 
-            .secao {{
-                background: white;
-                padding: 25px;
-                border-radius: 18px;
-                margin-bottom: 25px;
-
-                box-shadow:
-                    0 5px 20px rgba(0,0,0,0.07);
-            }}
-
-            .secao h2 {{
-                color: #285c2d;
-                margin-top: 0;
-            }}
-
-            table {{
-                width: 100%;
-                border-collapse: collapse;
-            }}
-
-            th {{
-                background: #285c2d;
-                color: white;
-                text-align: left;
-            }}
-
-            th, td {{
-                padding: 13px;
-                border-bottom: 1px solid #ddd;
-            }}
-
-            tr:hover {{
-                background: #f7faf6;
-            }}
-
-            .seguro {{
-                padding: 15px;
-                background: #e8f4e6;
-                border-left: 5px solid #285c2d;
-                border-radius: 8px;
-                margin-bottom: 25px;
-            }}
-
-            @media (max-width: 800px) {{
-
-                .cards {{
-                    grid-template-columns: 1fr;
-                }}
-
-                table {{
-                    display: block;
-                    overflow-x: auto;
-                }}
-
-                header {{
-                    flex-direction: column;
-                    align-items: flex-start;
-                }}
-
-            }}
+            .sair {
+                display: inline-block;
+                margin-bottom: 20px;
+            }
 
         </style>
 
@@ -970,182 +873,123 @@ def relatorio_mensal():
 
     <body>
 
-        <header>
+        <a
+            class="sair"
+            href="/admin/logout"
+        >
+            Sair
+        </a>
 
-            <h1>
-                FRUTAFRESCA
-            </h1>
-
-            <a href="/admin/logout">
-                Sair
-            </a>
-
-        </header>
-
-        <main>
-
-            <div class="titulo">
-
-                <h2>
-                    Relatório mensal
-                </h2>
-
-                <p>
-                    Dados referentes ao mês atual:
-                    {datetime.now().strftime("%m/%Y")}
-                </p>
-
-            </div>
+        <h1>
+            Relatório de pedidos
+        </h1>
+    """
 
 
-            <div class="seguro">
+    for pedido in pedidos:
 
-                Área exclusiva do administrador.
-                Os clientes não possuem acesso a este relatório.
+        html += f"""
+        <div class="pedido">
 
-            </div>
+            <h2>
+                Pedido nº {pedido["id"]}
+            </h2>
+
+            <p>
+                <strong>Cliente:</strong>
+                {pedido["nome_cliente"]}
+            </p>
+
+            <p>
+                <strong>Telefone:</strong>
+                {pedido["telefone"] or "-"}
+            </p>
+
+            <p>
+                <strong>Data:</strong>
+                {pedido["data_pedido"] or "-"}
+            </p>
+
+            <p>
+                <strong>Retirada:</strong>
+                {pedido["local_retirada"] or "-"}
+            </p>
+
+            <p>
+                <strong>Observação:</strong>
+                {pedido["observacao"] or "-"}
+            </p>
+
+            <h3>
+                Produtos
+            </h3>
+        """
 
 
-            <div class="cards">
+        for item in itens:
 
-                <div class="card">
+            if item["pedido_id"] == pedido["id"]:
 
-                    <h3>
-                        Pedidos realizados
-                    </h3>
+                html += f"""
+                <div class="item">
 
-                    <div class="numero">
-                        {total_pedidos}
-                    </div>
+                    {item["nome"]}
 
-                </div>
+                    -
+                    {item["quantidade_kg"]:.2f} kg
 
-
-                <div class="card">
-
-                    <h3>
-                        Faturamento
-                    </h3>
-
-                    <div class="numero">
-                        R$ {float(faturamento):.2f}
-                    </div>
-
-                </div>
-
-
-                <div class="card">
-
-                    <h3>
-                        Frutas vendidas
-                    </h3>
-
-                    <div class="numero">
-                        {float(kg_vendidos):.2f} kg
-                    </div>
+                    -
+                    R$ {item["subtotal"]:.2f}
 
                 </div>
-
-            </div>
-
-
-            <div class="secao">
-
-                <h2>
-                    Produtos vendidos
-                </h2>
-
-                <table>
-
-                    <thead>
-
-                        <tr>
-                            <th>Produto</th>
-                            <th>Quantidade</th>
-                            <th>Valor</th>
-                        </tr>
-
-                    </thead>
-
-                    <tbody>
-
-                        {tabela_produtos}
-
-                    </tbody>
-
-                </table>
-
-            </div>
+                """
 
 
-            <div class="secao">
+        html += f"""
 
-                <h2>
-                    Pedidos do mês
-                </h2>
+            <p class="total">
 
-                <table>
+                Total:
+                R$ {pedido["total"]:.2f}
 
-                    <thead>
+            </p>
 
-                        <tr>
-                            <th>Pedido</th>
-                            <th>Cliente</th>
-                            <th>Telefone</th>
-                            <th>Total</th>
-                            <th>Data</th>
-                            <th>Observação</th>
-                        </tr>
+        </div>
+        """
 
-                    </thead>
 
-                    <tbody>
-
-                        {tabela_pedidos}
-
-                    </tbody>
-
-                </table>
-
-            </div>
-
-        </main>
-
+    html += """
     </body>
 
     </html>
     """
 
 
-# ============================================================
-# SAIR DO ADMIN
-# ============================================================
+    return html
+
+
+# =====================================================
+# LOGOUT
+# =====================================================
 
 @app.route("/admin/logout")
 def admin_logout():
 
-    session.pop("admin_logado", None)
+    session.clear()
 
     return redirect("/admin")
 
 
-# ============================================================
-# INICIAR SERVIDOR
-# ============================================================
+# =====================================================
+# INICIAR APLICAÇÃO
+# =====================================================
 
 if __name__ == "__main__":
 
-    print("=" * 45)
-    print("FRUTAFRESCA")
-    print("=" * 45)
-    print("Banco de pedidos pronto!")
-    print("Site: http://127.0.0.1:5000")
-    print("Admin: http://127.0.0.1:5000/admin")
-    print("Relatório: http://127.0.0.1:5000/relatorio/mensal")
-    print("=" * 45)
+    criar_banco()
 
     app.run(
-        debug=True,
         host="127.0.0.1",
-        port=5000
+        port=5000,
+        debug=True
     )
